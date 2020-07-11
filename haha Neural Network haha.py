@@ -1,5 +1,5 @@
 import numpy as np
-import tensorflow as tf
+import tensorflow as tf   #This is just to load the MNIST database
 import matplotlib.pyplot as plt
 import time
 class NN(object):
