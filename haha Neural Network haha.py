@@ -1,5 +1,5 @@
 import numpy as np
-import tensorflow as tf   #This is just to load the MNIST database
+import tensorflow as tf  #This is just to load the MNIST dataset
 import matplotlib.pyplot as plt
 import time
 class NN(object):
@@ -49,11 +49,11 @@ class NN(object):
             test_accuracy.append(self.accuracy(w,b,test,fuck))
             cost_epoch.append(kost)
             est=((time.time()-t0)/(i+1))*(epoch-i-1)
-            print('For epoch ',i+1,': cost={:.8f} train_accuracy= {:.3f} test accuracy= {:.2f} time left= {:.2f}'.format(c[0],train_accuracy[i],test_accuracy[i],est),'s')
+            print('For epoch ',i+1,': rate={:.6f} cost={:.8f} train_accuracy= {:.3f} test accuracy= {:.2f} time left= {:.2f}'.format(rate,c[0],train_accuracy[i],test_accuracy[i],est),'s')
             
             if (max_acc<=test_accuracy[i]): max_acc,bestw,bestb,last_ten_mean=test_accuracy[i],w,b,np.mean(test_accuracy[i-9:i+1])
-            if(learn_schedule==True and i>=10 and (np.amax(test_accuracy[i-14:i+1]))==test_accuracy[i-14]): rate=rate/2
-            if(stop_early==True and i>=15 and (np.amax(test_accuracy[i-14:i+1]))==test_accuracy[i-14]): break       # Stop early 
+            if(learn_schedule==True and i>=15 and (np.amax(test_accuracy[i-14:i+1])==test_accuracy[i-14])): rate=rate/2
+            if(stop_early==True and i>=25 and (np.amax(test_accuracy[i-24:i+1]))==test_accuracy[i-24]): break       # Stop early 
             
         print('Time elapsed: ',time.time()-t0,'Max_test_accuracy= ',max_acc,'Mean Last 10=',last_ten_mean)
         if (plot==True):
