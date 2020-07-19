@@ -1,5 +1,5 @@
 import numpy as np
-import tensorflow as tf
+import tensorflow as tf  #just to import data UwU
 import matplotlib.pyplot as plt
 import time
 from itertools import repeat
