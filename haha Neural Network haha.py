@@ -1,7 +1,8 @@
 import numpy as np
-import tensorflow as tf  #This is just to load the MNIST dataset
+import tensorflow as tf
 import matplotlib.pyplot as plt
 import time
+from itertools import repeat
 class NN(object):
     def __init__(self,sizes):
         self.layers=len(sizes)
@@ -23,52 +24,55 @@ class NN(object):
         self.test=[[x,y] for x,y in zip(x_t,y_t)]
         self.valid=[[x,y]for x,y in zip(x_v,y_v)]
         self.tr_len,self.test_len,self.vl_len=len(self.train),len(self.test),len(self.valid)
+        
     
     def random_divide_in_batches(self,train,n,batch_size):
         x=np.random.permutation(train)
         mini_batches = [x[k:k+batch_size] for k in np.arange(0, n,batch_size)]
         return mini_batches
     
-    def train_model(self,train,n,epoch,batch_size,rate,test,
-                        fuck="sigma",cost='quad',regularization='L2',
-                        reg_parameter=0,plot=True,stop_early=True,learn_schedule=False,momentum=0): # x is at index one of each element of train 
+    def train_model(self,train,n,epoch,batch_size,rate,test,reg_parameter=0,
+                        fuck="sigma",cost='cross_entropy',regularization='L2',
+                        plot=False,stop_early=True,learn_schedule=True,momentum=0,metric="accuracy"): # x is at index one of each element of train 
         
         w,b,v=self.weights,self.biases,self.velocity
         cost_epoch,train_accuracy,test_accuracy=[],[],[]
-        t0,max_acc=time.time(),0
+        t0,max_acc,min_cost=time.time(),0,10000000
         for i in np.arange(epoch):
             x=self.random_divide_in_batches(train,n,batch_size) # list containing batches of training data
             for j in x:
                 batch_size=len(j)
-                out=self.operation(w,b,j,fuck)
+                out=list(map(self.operation,j,repeat(w),repeat(b),repeat('sigma')))
                 c=self.cost(out,j,batch_size,cost)
                 kost=c[0]+self.regularization(w,batch_size,regularization,reg_parameter)
                 [Cb,Cw]=self.backprop(out,batch_size,w,c[1])
                 [w,b]=self.update_parameters(w,b,v,Cw,Cb,rate,reg_parameter,batch_size,regularization,momentum)
-            train_accuracy.append(self.accuracy(w,b,train,fuck))
-            test_accuracy.append(self.accuracy(w,b,test,fuck))
-            cost_epoch.append(kost)
+            train_accuracy.append(self.accuracy(w,b,train,fuck,True))
+            test_accuracy.append(self.accuracy(w,b,test,fuck,True))
+            cost_epoch.append(c[0])
             est=((time.time()-t0)/(i+1))*(epoch-i-1)
             print('For epoch ',i+1,': rate={:.6f} cost={:.8f} train_accuracy= {:.3f} test accuracy= {:.2f} time left= {:.2f}'.format(rate,c[0],train_accuracy[i],test_accuracy[i],est),'s')
             
-            if (max_acc<=test_accuracy[i]): max_acc,bestw,bestb,last_ten_mean=test_accuracy[i],w,b,np.mean(test_accuracy[i-9:i+1])
+            if (max_acc<=test_accuracy[i] ):
+                 max_acc,last_ten_mean=test_accuracy[i],np.mean(test_accuracy[i-9:i+1])
+                 if(metric=="accuracy"): self.weights,self.biases=w,b
+            if(min_cost>=cost_epoch[i] ):
+                 min_cost=cost_epoch[i]
+                 if(metric=="cost"):self.weights,self.biases=w,b
             if(learn_schedule==True and i>=15 and (np.amax(test_accuracy[i-14:i+1])==test_accuracy[i-14])): rate=rate/2
             if(stop_early==True and i>=25 and (np.amax(test_accuracy[i-24:i+1]))==test_accuracy[i-24]): break       # Stop early 
             
-        print('Time elapsed: ',time.time()-t0,'Max_test_accuracy= ',max_acc,'Mean Last 10=',last_ten_mean)
+        print('Time elapsed: ',time.time()-t0,'Max_test_accuracy= ',max_acc,'Mean Last 10=',last_ten_mean,'min_Cost=',min_cost)
         if (plot==True):
             self.plot_graph(cost_epoch,train_accuracy,test_accuracy)
         return(max_acc)
  
-    def operation(self,w,b,train,fuck):                    #A is an array of all the n-D inputs, w= array of weights,b =array of biases
-        z=[]
-        for i in train:
-            y=[np.array([i[0],np.zeros_like(i[0])])]                #list of all the outputs of every layer for 1 input, actual output of the network is at (layers-1)
-            for j in np.arange(self.layers-1):
-                x=self.activation(np.dot(w[j],y[j][0])+b[j],fuck)  #[0] for activation and[1] for derivative((sigma(z(l))))
-                y.append(x) 
-            z.append(y)
-        return z
+    def operation(self,i,w,b,fuck):                    #A is an array of all the n-D inputs, w= array of weights,b =array of biases
+        y=[[i[0],np.zeros_like(i[0])]]                #list of all the outputs of every layer for 1 input, actual output of the network is at (layers-1)
+        for j in np.arange(self.layers-1):
+            x=self.activation(np.dot(w[j],y[j][0])+b[j],fuck)  #[0] for activation and[1] for derivative((sigma(z(l))))
+            y.append(x) 
+        return y
     
     def cost(self,out,train,n,func='quad'):              #outputs cost at index =0 and 
         c ,delta_last=0,[]
@@ -92,7 +96,7 @@ class NN(object):
         a,d=0,0
         if(func=="sigma"):
             a= 1.0/(1.0+np.exp(-x))
-            d= a*(1-a)
+            d= a*(1.0-a)
         elif(func=="relu"):
             a=np.maximum(np.zeros_like(x),x)
             d=np.zeros_like(a)
@@ -148,14 +152,19 @@ class NN(object):
                     delta_all[j-1]+=delta_l[j-1]
         return [delta_all,Cw_all]
         
-    def evaluate(self,w,b,x,fuck):
+    def evaluate(self,w,b,x,fuck,classification=True):
         for j in np.arange(self.layers-1):
             x=self.activation(np.dot(w[j],x)+b[j],fuck)[0]  #[0] for activation and[1] for derivative((sigma(z(l))))
-        return np.argmax(x)
-    def accuracy(self,w,b,test,fuck):
+        if(classification==True):return np.argmax(x)
+        else: return x[0]
+
+    def accuracy(self,w,b,test,fuck,classification):
         score,n=0,len(test)
         for k in test:
-            if(self.evaluate(w,b,k[0],fuck)==np.argmax(k[1])): score+=1    
+            if classification==True:
+                if(self.evaluate(w,b,k[0],fuck,True)==np.argmax(k[1])): score+=1    
+            else:
+                score+=1-(np.abs(self.evaluate(w,b,k[0],fuck,False)-k[1][0])/k[1][0])
         acc=((score/n)*100)    
         return acc
 
