@@ -42,13 +42,13 @@ class NN(object):
             x=self.random_divide_in_batches(train,n,batch_size) # list containing batches of training data
             for j in x:
                 batch_size=len(j)
-                out=list(map(self.operation,j,repeat(w),repeat(b),repeat('sigma')))
+                out=list(map(self.operation,j,repeat(w),repeat(b),repeat(fuck)))
                 c=self.cost(out,j,batch_size,cost)
                 kost=c[0]+self.regularization(w,batch_size,regularization,reg_parameter)
                 [Cb,Cw]=self.backprop(out,batch_size,w,c[1])
                 [w,b]=self.update_parameters(w,b,v,Cw,Cb,rate,reg_parameter,batch_size,regularization,momentum)
-            train_accuracy.append(self.accuracy(w,b,train,fuck,True))
-            test_accuracy.append(self.accuracy(w,b,test,fuck,True))
+            train_accuracy.append(self.accuracy(w,b,train,fuck,False))
+            test_accuracy.append(self.accuracy(w,b,test,fuck,False))
             cost_epoch.append(c[0])
             est=((time.time()-t0)/(i+1))*(epoch-i-1)
             print('For epoch ',i+1,': rate={:.6f} cost={:.8f} train_accuracy= {:.3f} test accuracy= {:.2f} time left= {:.2f}'.format(rate,c[0],train_accuracy[i],test_accuracy[i],est),'s')
@@ -98,10 +98,9 @@ class NN(object):
             a= 1.0/(1.0+np.exp(-x))
             d= a*(1.0-a)
         elif(func=="relu"):
-            a=np.maximum(np.zeros_like(x),x)
-            d=np.zeros_like(a)
-            for i in np.arange(len(a)): 
-                if(a[i]!=0): d[i]=1
+            d=np.zeros_like(x)
+            a=np.maximum(x,d)
+            d=np.where(a>d,1.,0.)
         elif(func=="tanh"):
             s=self.activation(2*x,func="sigma")
             a=2*s[0]-1
